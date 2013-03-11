@@ -1,8 +1,9 @@
 import re
+import locale
 
 import trac.wiki.formatter
 from trac.mimeview.api import Context
-from time import gmtime, strftime
+from time import strftime, localtime
 from code_comments import db
 from trac.util import Markup
 
@@ -83,12 +84,12 @@ class Comment:
         # except the two specials cases of changesets (revision-only)
         # and arrachments (path-only), we must always have them both
         assert self.path and self.revision
-        
+
         link_text = self.path + '@' + str(self.revision)
         if self.line:
             link_text += '#L' + str(self.line)
         return link_text
-    
+
     def attachment_link_text(self):
         return '#%s: %s' % (self.attachment_ticket, self.attachment_filename)
 
@@ -96,7 +97,7 @@ class Comment:
         if self.is_comment_to_attachment:
             return '[%s %s]' % (self.req.href())
         return 'source:' + self.link_text()
-        
+
     def attachment_info(self):
         info = {'is': False, 'ticket': None, 'filename': None}
         info['is'] = self.path.startswith('attachment:')
@@ -111,15 +112,16 @@ class Comment:
 
     def path_link_tag(self):
         return Markup('<a href="%s">%s</a>' % (self.href(), self.link_text()))
-        
+
     def formatted_date(self):
-        return strftime('%d %b %Y, %H:%M', gmtime(self.time))
-        
+        encoding = locale.getlocale()[1] if locale.getlocale()[1] else 'utf-8'
+        return strftime('%d %b %Y, %H:%M', localtime(self.time)).decode(encoding)
+
     def get_ticket_relations(self):
         relations = set()
         db = self.env.get_db_cnx()
         cursor = db.cursor()
-        query = """SELECT ticket FROM ticket_custom WHERE name = 'code_comment_relation' AND 
+        query = """SELECT ticket FROM ticket_custom WHERE name = 'code_comment_relation' AND
                         (value LIKE '%(comment_id)d' OR
                          value LIKE '%(comment_id)d,%%' OR
                          value LIKE '%%,%(comment_id)d' OR value LIKE '%%,%(comment_id)d,%%')""" % {'comment_id': self.id}
@@ -130,7 +132,7 @@ class Comment:
             cursor.execute(query)
             result['tickets'] = cursor.fetchall()
         return set([int(row[0]) for row in result['tickets']])
-        
+
     def get_ticket_links(self):
         relations = self.get_ticket_relations()
         links = ['[[ticket:%s]]' % relation for relation in relations]
